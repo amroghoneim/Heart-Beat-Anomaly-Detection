@@ -1,4 +1,4 @@
 # Heart-Beat-Anomaly-Detection
-Amro Ghoneim
-Ismail ElSharkawy
-Zeyad Ali
+**Amro Ghoneim** -
+**Ismail ElSharkawy**
+**Zeyad Ali**
