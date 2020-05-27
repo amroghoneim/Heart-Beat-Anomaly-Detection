@@ -9,10 +9,10 @@
   * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software component is licensed by ST under Ultimate Liberty license
+  * SLA0044, the "License"; You may not use this file except in compliance with
+  * the License. You may obtain a copy of the License at:
+  *                             www.st.com/SLA0044
   *
   ******************************************************************************
   */
@@ -20,8 +20,9 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <stdio.h>
-
+#include "app_x-cube-ai.h"
+#include "stdio.h"
+#include <cmath>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -45,6 +46,10 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+CRC_HandleTypeDef hcrc;
+
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -55,13 +60,33 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_CRC_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_TIM2_Init(void);
+
 /* USER CODE BEGIN 0 */
+	
+float test;
+int count;
+float min=999999;
+float max= -1;
+char reading[10];
+uint16_t adcval;
+char newline[2] = "\r\n";
+float in_data[187];
+float norm_in_data[187] = {0.823899,0.474843,0.163522,0.685535,0.204403,0.789308,0.374214,0.128931,0.650943,0.185535,0.820755,0.336478,0.125786,0.641509,0.188679,0.886792,0.336478,0.201258,0.578616,0.172956,0.823899,0.289308,0.295597,0.569182,0.166667,0.833333,0.267296,0.399371,0.534591,0.166667,0.886792,0.267296,0.506289,0.503145,0.160377,0.830189,0.238994,0.556604,0.490566,0.144654,0.817610,0.220126,0.588050,0.468553,0.150943,0.767296,0.226415,0.654088,0.418239,0.147799,0.738994,0.207547,0.764151,0.408805,0.128931,0.751572,0.213836,0.902516,0.421384,0.157233,0.679245,0.204403,0.823899,0.327044,0.141509,0.613208,0.188679,0.981132,0.355346,0.261006,0.650943,0.201258,0.921384,0.327044,0.273585,0.072327,0.000000,0.669811,0.210692,0.443396,0.562893,0.185535,0.902516,0.235849,0.531447,0.509434,0.166667,0.858491,0.232704,0.550314,0.465409,0.154088,0.783019,0.235849,0.616352,0.415094,0.138365,0.852201,0.235849,0.742138,0.411950,0.135220,0.808176,0.207547,0.823899,0.396226,0.110063,0.644654,0.176101,0.861635,0.355346,0.116352,0.657233,0.182390,0.921384,0.349057,0.179245,0.606918,0.185535,0.911950,0.323899,0.283019,0.550314,0.172956,0.886792,0.298742,0.405660,0.569182,0.172956,0.874214,0.270440,0.474843,0.503145,0.157233,0.877358,0.273585,0.550314,0.525157,0.157233,0.943396,0.286164,0.594340,0.468553,0.150943,0.918239,0.276730,0.638365,0.427673,0.135220,0.764151,0.220126,0.748428,0.396226,0.144654,0.701258,0.210692,0.827044,0.371069,0.125786,0.641509,0.179245,0.899371,0.349057,0.141509,0.644654,0.194969,0.874214,0.314465,0.232704,0.694969,0.201258,1.000000,0.352201,0.320755,0.556604,0.176101,0.883648,0.289308,0.415094,0.493711,0.154088,0.814465,0.251572,0.471698,0.433962,0.141509,0.833333};
+float norm_in_data_f;
+	char normalized[10];
 
 /* USER CODE END 0 */
 
@@ -69,6 +94,28 @@ static void MX_USART2_UART_Init(void);
   * @brief  The application entry point.
   * @retval int
   */
+	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(hadc);
+  /* NOTE : This function should not be modified. When the callback is needed,
+            function HAL_ADC_ConvCpltCallback must be implemented in the user file.
+   */
+	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+	adcval = HAL_ADC_GetValue(&hadc1); //getting the ADC value
+	adcval= ((float)adcval/4096.0) * 2048.0; //change to 11 bits
+	if(count<187){  //only add the first 187 samples to the buffer in_data
+				in_data[count] = adcval; 
+				if(in_data[count]<min)  //get the minimum value
+					min=in_data[count];
+				if(in_data[count]>max)  //get the maximum value
+					max=in_data[count];
+				count++;
+			}
+//	sprintf(reading, "%hu\r\n", adcval); // copy the adc value to a reading buffer to display the readings if needed (python)
+//  HAL_UART_Transmit(&huart2, (uint8_t*)reading, sizeof(reading)-4, HAL_MAX_DELAY); //transmit reading (python)
+	//HAL_UART_Transmit(&huart2, (uint8_t*)newline, sizeof(newline), HAL_MAX_DELAY); //newline
+}
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -94,38 +141,55 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
+  MX_CRC_Init();
+  MX_TIM2_Init();
   MX_USART2_UART_Init();
-  /* USER CODE BEGIN 2 */
+  MX_X_CUBE_AI_Init();
+   /* USER CODE BEGIN 2 */
+	
+	//float test[1];
+	char inference[10];
+	char normal[17]={'N','o','r','m','a','l',',','g','o','o','d',' ','j','o','b','\r','\n'};
+	char abnormal[10]={'A','b','n','o','r','m','a','l','\r','\n'};
+	//static float in_data[187] = {1.00E+00,7.64E-01,4.64E-01,1.81E-01,1.18E-01,1.52E-01,1.25E-01,1.01E-01,1.02E-01,8.82E-02,7.82E-02,7.82E-02,7.25E-02,7.25E-02,8.25E-02,9.53E-02,1.14E-01,1.25E-01,1.42E-01,1.71E-01,2.01E-01,2.29E-01,2.59E-01,2.96E-01,3.40E-01,3.67E-01,3.81E-01,4.07E-01,4.31E-01,4.34E-01,4.40E-01,4.31E-01,4.28E-01,4.17E-01,3.95E-01,3.83E-01,3.70E-01,3.34E-01,3.20E-01,3.00E-01,2.65E-01,2.56E-01,2.46E-01,2.45E-01,2.43E-01,2.32E-01,2.59E-01,2.97E-01,3.24E-01,3.49E-01,3.39E-01,3.06E-01,2.63E-01,2.30E-01,2.28E-01,2.25E-01,2.23E-01,2.30E-01,2.23E-01,2.26E-01,2.35E-01,2.18E-01,2.46E-01,4.14E-01,6.46E-01,8.99E-01,7.47E-01,3.19E-01,3.13E-02,0.00E+00,1.11E-01,1.48E-01,1.27E-01,1.14E-01,1.04E-01,1.08E-01,1.14E-01,1.05E-01,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00,0.00E+00};  
+	
+	HAL_TIM_Base_Start(&htim2);
+	HAL_ADC_Start_IT(&hadc1);
 
-    /* USER CODE END 2 */
-	uint16_t raw;
-  char reading[10];
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      // Test: Set GPIO pin high
-    //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
-
-    // Get ADC value
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-    raw = HAL_ADC_GetValue(&hadc1);
-
-
-    // Test: Set GPIO pin low
-    //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
-
-    // Convert to string and print
-    sprintf(reading, "%hu\r\n", raw);
-    HAL_UART_Transmit(&huart2, (uint8_t*)reading, sizeof(reading)-5, HAL_MAX_DELAY);
-
-    // Pretend we have to do something else for a while
-    HAL_Delay(1);
+		if(count>=187){  //if Counter exceeded 187 samples
+			HAL_ADC_Stop_IT(&hadc1); //stop ADC interrupts so no more values are read
+				for (int j=0; j<187;j++){
+					norm_in_data[j]= (in_data[j]-min)/(max-min); //normailize the signals in in_data buffer
+					//norm_in_data_f= (in_data[j]-min)/(max-min); //used for normalized transmission
+				}
+				test = MX_X_CUBE_AI_Process(norm_in_data); //use the AI_Process to get the prediction
+				if(!isnan(test)){
+					sprintf(inference, "%f\r\n", test); //copy the probability to inference array 
+				//HAL_UART_Transmit(&huart2, (uint8_t*)inference, sizeof(inference), HAL_MAX_DELAY);
+				if((inference[2]=='9') || (inference[0]=='1')) //check if the probability is >=0.9
+					HAL_UART_Transmit(&huart2, (uint8_t*)normal, sizeof(normal), HAL_MAX_DELAY); //trannsmit normal
+				else
+					HAL_UART_Transmit(&huart2, (uint8_t*)abnormal, sizeof(abnormal), HAL_MAX_DELAY); //transmit abnormal
+			}
+//				sprintf(reading, "%f\r\n", norm_in_data_f); //copy normalized values to reading (python)
+//				HAL_UART_Transmit(&huart2, (uint8_t*)reading, sizeof(reading), HAL_MAX_DELAY); //Transmit normalized reading (python)
+				count =0; //reset counter
+				min=999999; //reset minimum
+				max=-1; //reset maximum
+				HAL_ADC_Start_IT(&hadc1); //start ADC interrupt again.
+			
+			}	
+				HAL_Delay(1);
   }
   /* USER CODE END 3 */
 }
+	
 
 /**
   * @brief System Clock Configuration
@@ -203,8 +267,8 @@ static void MX_ADC1_Init(void)
   /** Common config 
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV2;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B; //bits/////////////////////
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
@@ -213,8 +277,8 @@ static void MX_ADC1_Init(void)
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.NbrOfDiscConversion = 1;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_TRGO;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   hadc1.Init.OversamplingMode = DISABLE;
@@ -226,7 +290,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_11;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_24CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -237,6 +301,82 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
+  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 7; //8000  7999
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 7999; //7
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -286,29 +426,12 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA6 */
   GPIO_InitStruct.Pin = GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PA7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
